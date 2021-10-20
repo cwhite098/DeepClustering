@@ -19,5 +19,5 @@ def acc(y_true, y_pred):
     w = np.zeros((D, D), dtype=np.int64)
     for i in range(y_pred.size):
         w[y_pred[i], y_true[i]] += 1
-    row_ind, col_ind = linear_assignment(w.max() - w)
-    return sum([w[row_ind, col_ind]]) * 1.0 / y_pred.size
+    ind = np.transpose(np.asarray(linear_assignment(w.max() - w)))
+    return sum([w[i, j] for i, j in ind]) * 1.0 / y_pred.size
