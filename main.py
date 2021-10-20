@@ -109,12 +109,13 @@ def add_noise(img):
 	return noisy_img
 
 def save_checkpoint(state, filename, is_best):
-    """Save checkpoint if a new best is achieved"""
-    if is_best:
-        print("=> Saving new checkpoint")
-        torch.save(state, filename)
-    else:
-        print("=> Validation Accuracy did not improve")
+    #"""Save checkpoint if a new best is achieved"""
+	print(filename)
+	if is_best:
+		print("=> Saving new checkpoint")
+		torch.save(state, filename)
+	else:
+		print("=> Validation Accuracy did not improve")
 
 def pretrain(**kwargs):
 	data = kwargs['data']
