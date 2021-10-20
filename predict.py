@@ -1,9 +1,12 @@
 from main import *
+from sklearn.metrics import confusion_matrix, accuracy_score
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-x, y = load_mnist()
+#x, y = load_mnist()
 
-test_img = x[100,:]
+x, y, x_test = load_tilts()
+
+test_img = x_test[0,:]
 print(test_img)
 
 # Getting the model##############################################
@@ -21,7 +24,7 @@ else:
         "best": float("inf")
     }
 dec_save_path='saves/dec.pth'
-dec = DEC(n_clusters=10, autoencoder=autoencoder, hidden=10, cluster_centers=None, alpha=1.0).to(device)
+dec = DEC(n_clusters=2, autoencoder=autoencoder, hidden=10, cluster_centers=None, alpha=1.0).to(device)
 if os.path.isfile(dec_save_path):
     print('Loading {}'.format(dec_save_path))
     checkpoint = torch.load(dec_save_path)
@@ -34,7 +37,7 @@ else:
     }
 #####################################################
 
-batch = x
+batch = x_test
 img = batch.float()
 print('img shape:' + str(img.shape))
 img = img.to(device)
@@ -47,3 +50,5 @@ out = output.argmax(1)
 print(out.shape)
 print(out)
 print(y.shape)
+
+print(confusion_matrix(y.cpu().numpy(),out.cpu().numpy()))

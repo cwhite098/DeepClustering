@@ -17,13 +17,15 @@ from metrics import *
 from sklearn.manifold import TSNE
 from matplotlib import pyplot as plt
 import pandas as pd
+from extract_data import *
+from sklearn.preprocessing import normalize
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 class AutoEncoder(nn.Module):
 	def __init__(self):
 		super(AutoEncoder, self).__init__()
 		self.encoder = nn.Sequential(
-			nn.Linear(28 * 28, 500),
+			nn.Linear(72, 500),
 			nn.ReLU(True),
 			nn.Linear(500, 500),
 			nn.ReLU(True),
@@ -41,7 +43,7 @@ class AutoEncoder(nn.Module):
 			nn.ReLU(True),
 			nn.Linear(500, 500),
 			nn.ReLU(True),
-			nn.Linear(500, 28 * 28))
+			nn.Linear(500, 72))
 		self.model = nn.Sequential(self.encoder, self.decoder)
 	def encode(self, x):
 		return self.encoder(x)
@@ -138,7 +140,7 @@ def pretrain(**kwargs):
 		    # ===================forward=====================
 		    output = model(noisy_img)
 		    output = output.squeeze(1)
-		    output = output.view(output.size(0), 28*28)
+		    output = output.view(output.size(0), 72)
 		    loss = nn.MSELoss()(output, img)
 		    # ===================backward====================
 		    optimizer.zero_grad()
@@ -180,17 +182,17 @@ def train(**kwargs):
 	    features.append(model.autoencoder.encode(img).detach().cpu())
 	features = torch.cat(features)
 	# ============K-means=======================================
-	kmeans = KMeans(n_clusters=10, random_state=0).fit(features)
+	kmeans = KMeans(n_clusters=2, random_state=0).fit(features)
 	cluster_centers = kmeans.cluster_centers_
 	cluster_centers = torch.tensor(cluster_centers, dtype=torch.float).cuda()
 	model.clusteringlayer.cluster_centers = torch.nn.Parameter(cluster_centers)
 	# =========================================================
 	y_pred = kmeans.predict(features)
-	accuracy = acc(y.cpu().numpy(), y_pred)
-	print('Initial Accuracy: {}'.format(accuracy))
+	#accuracy = acc(y.cpu().numpy(), y_pred)
+	#print('Initial Accuracy: {}'.format(accuracy))
 
 	loss_function = nn.KLDivLoss(size_average=False)
-	optimizer = torch.optim.SGD(params=model.parameters(), lr=0.1, momentum=0.9)
+	optimizer = torch.optim.SGD(params=model.parameters(), lr=0.01, momentum=0.9)
 	print('Training')
 	row = []
 	for epoch in range(start_epoch, num_epochs):
@@ -207,9 +209,9 @@ def train(**kwargs):
 		optimizer.zero_grad()
 		loss.backward()
 		optimizer.step()
-		accuracy = acc(y.cpu().numpy(), out.cpu().numpy())
-		row.append([epoch, accuracy])
-		print('Epochs: [{}/{}] Accuracy:{}, Loss:{}'.format(epoch, num_epochs, accuracy, loss))
+		#accuracy = acc(y.cpu().numpy(), out.cpu().numpy())
+		#row.append([epoch, accuracy])
+		#print('Epochs: [{}/{}] Accuracy:{}, Loss:{}'.format(epoch, num_epochs, accuracy, loss))
 		state = loss.item()
 		is_best = False
 		if state < checkpoint['best']:
@@ -245,6 +247,32 @@ def load_mnist():
 	print('MNIST samples', x.shape)
 	return x, y
 
+
+def load_tilts():
+	cat_data = load_list('pickle_data', 'cat_data')
+	uncat_data = load_list('pickle_data', 'uncat_data')
+	unlinked_data = load_list('pickle_data', 'unlinked_data')
+
+	X_train = get_tilt_timeseries(unlinked_data)
+	X_test = get_tilt_timeseries(cat_data)
+	y_test = get_labels(cat_data)
+
+	#X_train = np.reshape(X_train, (X_train.shape[0],216))
+	#X_test = np.reshape(X_test, (X_test.shape[0],216))
+
+	X_train = get_mags(X_train)
+	X_test = get_mags(X_test)
+
+	X_train = normalize(X_train)
+	X_test  = normalize(X_test)
+
+	x = torch.tensor(X_train)
+	y = torch.tensor(y_test)
+	x_test = torch.tensor(X_test)
+	x = np.divide(x, x.max())
+
+	return x, y, x_test
+
 if __name__ == '__main__':
 
 
@@ -262,7 +290,8 @@ if __name__ == '__main__':
 	epochs_pre = args.pretrain_epochs
 	batch_size = args.batch_size
 
-	x, y = load_mnist()
+	#x, y = load_mnist()
+	x, y, x_test = load_tilts()
 	autoencoder = AutoEncoder().to(device)
 	ae_save_path = 'saves/sim_autoencoder.pth'
 
@@ -280,7 +309,7 @@ if __name__ == '__main__':
 	
 
 	dec_save_path='saves/dec.pth'
-	dec = DEC(n_clusters=10, autoencoder=autoencoder, hidden=10, cluster_centers=None, alpha=1.0).to(device)
+	dec = DEC(n_clusters=2, autoencoder=autoencoder, hidden=10, cluster_centers=None, alpha=1.0).to(device)
 	if os.path.isfile(dec_save_path):
 		print('Loading {}'.format(dec_save_path))
 		checkpoint = torch.load(dec_save_path)
