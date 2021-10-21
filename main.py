@@ -19,6 +19,7 @@ from matplotlib import pyplot as plt
 import pandas as pd
 from extract_data import *
 from sklearn.preprocessing import normalize
+from sklearn.decomposition import PCA
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 class AutoEncoder(nn.Module):
@@ -105,6 +106,27 @@ class DEC(nn.Module):
 		fig.savefig('plots/mnist_{}.png'.format(epoch))
 		plt.close(fig)
 
+	def visualise_labelled(self, x_whole, x_class0, x_class1):
+		fig = plt.figure()
+		ax = plt.subplot(111)
+		x = self.autoencoder.encode(x_whole).detach()
+		x_class0 = self.autoencoder.encode(x_class0).detach()
+		x_class1 = self.autoencoder.encode(x_class1).detach() 
+		x = x.cpu().numpy()[:]
+		x_class0 = x_class0.cpu().numpy()[:]
+		x_class1 = x_class1.cpu().numpy()[:]
+
+		pca = PCA(n_components=2)
+		pca = pca.fit(np.vstack((x,x_class0,x_class1)))
+		x_embed  =pca.transform(x)
+		x_class0_embed = pca.transform(x_class0)
+		x_class1_embed = pca.transform(x_class1)
+
+		plt.scatter(x_embed[:,0], x_embed[:,1])
+		plt.scatter(x_class0_embed[:,0], x_class0_embed[:,1], color='green', label='Not Crash',alpha=0.4)
+		plt.scatter(x_class1_embed[:,0], x_class1_embed[:,1], color='red', label='Crash',alpha=0.4)
+		plt.show()
+
 def add_noise(img):
 	noise = torch.randn(img.size()) * 0.2
 	noisy_img = img + noise
@@ -112,7 +134,6 @@ def add_noise(img):
 
 def save_checkpoint(state, filename, is_best):
     #"""Save checkpoint if a new best is achieved"""
-	print(filename)
 	if is_best:
 		print("=> Saving new checkpoint")
 		torch.save(state, filename)
@@ -182,7 +203,7 @@ def train(**kwargs):
 	    features.append(model.autoencoder.encode(img).detach().cpu())
 	features = torch.cat(features)
 	# ============K-means=======================================
-	kmeans = KMeans(n_clusters=2, random_state=0).fit(features)
+	kmeans = KMeans(n_clusters=model.n_clusters, random_state=0).fit(features)
 	cluster_centers = kmeans.cluster_centers_
 	cluster_centers = torch.tensor(cluster_centers, dtype=torch.float).cuda()
 	model.clusteringlayer.cluster_centers = torch.nn.Parameter(cluster_centers)
@@ -192,7 +213,7 @@ def train(**kwargs):
 	#print('Initial Accuracy: {}'.format(accuracy))
 
 	loss_function = nn.KLDivLoss(size_average=False)
-	optimizer = torch.optim.SGD(params=model.parameters(), lr=0.01, momentum=0.9)
+	optimizer = torch.optim.SGD(params=model.parameters(), lr=0.1, momentum=0.9)
 	print('Training')
 	row = []
 	for epoch in range(start_epoch, num_epochs):
@@ -214,7 +235,7 @@ def train(**kwargs):
 		#print('Epochs: [{}/{}] Accuracy:{}, Loss:{}'.format(epoch, num_epochs, accuracy, loss))
 		state = loss.item()
 		is_best = False
-		if state < checkpoint['best']:
+		if state < checkpoint['best']:  #CHNAGE INEQUALITY
 		    checkpoint['best'] = state
 		    is_best = True
 
@@ -270,20 +291,22 @@ def load_tilts():
 	y = torch.tensor(y_test)
 	x_test = torch.tensor(X_test)
 	x = np.divide(x, x.max())
+	x_test = np.divide(x_test, x_test.max())
 
 	return x, y, x_test
 
-if __name__ == '__main__':
 
+
+if __name__ == '__main__':
 
 	import argparse
 
 	parser = argparse.ArgumentParser(description='train',
 	                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-	parser.add_argument('--batch_size', default=128, type=int)
-	parser.add_argument('--pretrain_epochs', default=20, type=int)
-	parser.add_argument('--train_epochs', default=200, type=int)
+	parser.add_argument('--batch_size', default=64, type=int)
+	parser.add_argument('--pretrain_epochs', default=200, type=int)
+	parser.add_argument('--train_epochs', default=300, type=int)
 	parser.add_argument('--save_dir', default='saves')
 	args = parser.parse_args()
 	print(args)
@@ -292,6 +315,7 @@ if __name__ == '__main__':
 
 	#x, y = load_mnist()
 	x, y, x_test = load_tilts()
+
 	autoencoder = AutoEncoder().to(device)
 	ae_save_path = 'saves/sim_autoencoder.pth'
 
@@ -309,7 +333,7 @@ if __name__ == '__main__':
 	
 
 	dec_save_path='saves/dec.pth'
-	dec = DEC(n_clusters=2, autoencoder=autoencoder, hidden=10, cluster_centers=None, alpha=1.0).to(device)
+	dec = DEC(n_clusters=6, autoencoder=autoencoder, hidden=10, cluster_centers=None, alpha=1.0).to(device)
 	if os.path.isfile(dec_save_path):
 		print('Loading {}'.format(dec_save_path))
 		checkpoint = torch.load(dec_save_path)
