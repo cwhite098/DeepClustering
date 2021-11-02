@@ -1,6 +1,7 @@
 import os
 import time
 import pdb
+import numpy as np
 from tqdm import *
 import torch
 from torch import nn
@@ -11,22 +12,21 @@ from torchvision import transforms
 from torchvision.datasets import MNIST
 from torchvision.utils import save_image
 from sklearn.cluster import KMeans
-import numpy as np
-from tqdm import *
 from metrics import *
 from sklearn.manifold import TSNE
 from matplotlib import pyplot as plt
 import pandas as pd
 from extract_data import *
-from sklearn.preprocessing import normalize
+from sklearn.preprocessing import normalize, StandardScaler
 from sklearn.decomposition import PCA
+
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 class AutoEncoder(nn.Module):
 	def __init__(self):
 		super(AutoEncoder, self).__init__()
 		self.encoder = nn.Sequential(
-			nn.Linear(72, 500),
+			nn.Linear(523, 500),
 			nn.ReLU(True),
 			nn.Linear(500, 500),
 			nn.ReLU(True),
@@ -44,7 +44,7 @@ class AutoEncoder(nn.Module):
 			nn.ReLU(True),
 			nn.Linear(500, 500),
 			nn.ReLU(True),
-			nn.Linear(500, 72))
+			nn.Linear(500, 523))
 		self.model = nn.Sequential(self.encoder, self.decoder)
 	def encode(self, x):
 		return self.encoder(x)
@@ -161,7 +161,7 @@ def pretrain(**kwargs):
 		    # ===================forward=====================
 		    output = model(noisy_img)
 		    output = output.squeeze(1)
-		    output = output.view(output.size(0), 72)
+		    output = output.view(output.size(0), 523)
 		    loss = nn.MSELoss()(output, img)
 		    # ===================backward====================
 		    optimizer.zero_grad()
@@ -278,24 +278,43 @@ def load_tilts():
 	X_test = get_tilt_timeseries(cat_data)
 	y_test = get_labels(cat_data)
 
-	#X_train = np.reshape(X_train, (X_train.shape[0],216))
-	#X_test = np.reshape(X_test, (X_test.shape[0],216))
+	X_train = calibrate_tilts(X_train)
+	X_test = calibrate_tilts(X_test)
 
-	X_train = get_mags(X_train)
-	X_test = get_mags(X_test)
+	X_train = np.reshape(X_train, (X_train.shape[0],216))
+	X_test = np.reshape(X_test, (X_test.shape[0],216))
 
-	X_train = normalize(X_train)
-	X_test  = normalize(X_test)
+	#X_train = get_mags(X_train)
+	#X_test = get_mags(X_test)
+
+	scaler = StandardScaler()
+	X_train = scaler.fit_transform(X_train)
+	X_test = scaler.transform(X_test)
 
 	x = torch.tensor(X_train)
 	y = torch.tensor(y_test)
 	x_test = torch.tensor(X_test)
-	x = np.divide(x, x.max())
-	x_test = np.divide(x_test, x_test.max())
 
 	return x, y, x_test
 
+def load_features():
 
+	cat_data = load_list('pickle_data', 'cat_data')
+	unlinked_data = load_list('pickle_data', 'unlinked_data')
+	y_test = get_labels(cat_data)
+
+	x_test = tsfresh_extraction(cat_data)
+	x_train = tsfresh_extraction(unlinked_data)
+
+	scaler = StandardScaler()
+	x_train = scaler.fit_transform(x_train)
+	x_test = scaler.transform(x_test)
+
+	x = torch.tensor(np.array(x_train))
+	y = torch.tensor(y_test)
+	x_test = torch.tensor(np.array(x_test))
+	
+	return x, y, x_test
 
 if __name__ == '__main__':
 
@@ -314,7 +333,7 @@ if __name__ == '__main__':
 	batch_size = args.batch_size
 
 	#x, y = load_mnist()
-	x, y, x_test = load_tilts()
+	x, y, x_test = load_features()
 
 	autoencoder = AutoEncoder().to(device)
 	ae_save_path = 'saves/sim_autoencoder.pth'
