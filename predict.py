@@ -1,11 +1,16 @@
 from main import *
 from sklearn.metrics import confusion_matrix, accuracy_score
 from metrics import *
+from extract_data import *
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 #x, y = load_mnist()
+#x, y, x_test = load_tilts()
+#x, y, x_test = load_features()
 
-x, y, x_test = load_tilts()
+x = load_list('pickle_features', 'train_x')
+x_test = load_list('pickle_features', 'test_x')
+y = load_list('pickle_features', 'test_y')
 
 test_img = x[0,:]
 print(test_img)
@@ -57,16 +62,14 @@ print(confusion_matrix(y.cpu().numpy(), out.cpu().numpy()))
 print(accuracy_score(y.cpu().numpy(), out.cpu().numpy())*100)
 print(acc(y.cpu().numpy(), out.cpu().numpy())*100)
 
-
 crash_ref = y.nonzero()
 nocrash_ref = (y-1)*(-1)
 nocrash_ref = nocrash_ref.nonzero()
 
-
 print(x_test.shape)
 print(x.shape)
-x_class0 = x_test[nocrash_ref,:].reshape(79,72)
-x_class1 = x_test[crash_ref,:].reshape(16,72)
+x_class0 = x_test[nocrash_ref,:].reshape(79,522)
+x_class1 = x_test[crash_ref,:].reshape(16,522)
 print(x_class0.shape)
 
-dec.visualise_labelled(x.float().to(device), x_class0.float().to(device), x_class1.float().to(device))
+#dec.visualise_labelled(x.float().to(device), x_class0.float().to(device), x_class1.float().to(device))
