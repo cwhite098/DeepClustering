@@ -26,7 +26,7 @@ class AutoEncoder(nn.Module):
 	def __init__(self):
 		super(AutoEncoder, self).__init__()
 		self.encoder = nn.Sequential(
-			nn.Linear(523, 500),
+			nn.Linear(522, 500),
 			nn.ReLU(True),
 			nn.Linear(500, 500),
 			nn.ReLU(True),
@@ -44,7 +44,7 @@ class AutoEncoder(nn.Module):
 			nn.ReLU(True),
 			nn.Linear(500, 500),
 			nn.ReLU(True),
-			nn.Linear(500, 523))
+			nn.Linear(500, 522))
 		self.model = nn.Sequential(self.encoder, self.decoder)
 	def encode(self, x):
 		return self.encoder(x)
@@ -96,14 +96,15 @@ class DEC(nn.Module):
 		x = self.autoencoder.encode(x) 
 		return self.clusteringlayer(x)
 
-	def visualize(self, epoch,x):
+	def visualize(self, epoch, x):
 		fig = plt.figure()
 		ax = plt.subplot(111)
 		x = self.autoencoder.encode(x).detach() 
-		x = x.cpu().numpy()[:2000]
+		x = x.cpu().numpy()[:200]
 		x_embedded = TSNE(n_components=2).fit_transform(x)
+		print('TSNE done!')
 		plt.scatter(x_embedded[:,0], x_embedded[:,1])
-		fig.savefig('plots/mnist_{}.png'.format(epoch))
+		#fig.savefig('plots/mnist_{}.png'.format(epoch))
 		plt.close(fig)
 
 	def visualise_labelled(self, x_whole, x_class0, x_class1):
@@ -161,7 +162,7 @@ def pretrain(**kwargs):
 		    # ===================forward=====================
 		    output = model(noisy_img)
 		    output = output.squeeze(1)
-		    output = output.view(output.size(0), 523)
+		    output = output.view(output.size(0), 522)
 		    loss = nn.MSELoss()(output, img)
 		    # ===================backward====================
 		    optimizer.zero_grad()
@@ -225,7 +226,7 @@ def train(**kwargs):
 		out = output.argmax(1)
 		if epoch % 20 == 0:
 			print('plotting')
-			dec.visualize(epoch, img)
+			#dec.visualize(epoch, img)
 		loss = loss_function(output.log(), target) / output.shape[0]
 		optimizer.zero_grad()
 		loss.backward()
@@ -235,7 +236,7 @@ def train(**kwargs):
 		#print('Epochs: [{}/{}] Accuracy:{}, Loss:{}'.format(epoch, num_epochs, accuracy, loss))
 		state = loss.item()
 		is_best = False
-		if state < checkpoint['best']:  #CHNAGE INEQUALITY
+		if state < checkpoint['best']: 
 		    checkpoint['best'] = state
 		    is_best = True
 
@@ -324,16 +325,17 @@ if __name__ == '__main__':
 	                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 	parser.add_argument('--batch_size', default=64, type=int)
-	parser.add_argument('--pretrain_epochs', default=200, type=int)
-	parser.add_argument('--train_epochs', default=300, type=int)
+	parser.add_argument('--pretrain_epochs', default=1000, type=int)
+	parser.add_argument('--train_epochs', default=2000, type=int)
 	parser.add_argument('--save_dir', default='saves')
 	args = parser.parse_args()
 	print(args)
 	epochs_pre = args.pretrain_epochs
 	batch_size = args.batch_size
 
-	#x, y = load_mnist()
-	x, y, x_test = load_features()
+	x = load_list('pickle_features', 'train_x')
+	x_test = load_list('pickle_features', 'test_x')
+	y = load_list('pickle_features', 'test_y')
 
 	autoencoder = AutoEncoder().to(device)
 	ae_save_path = 'saves/sim_autoencoder.pth'

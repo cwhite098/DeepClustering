@@ -151,9 +151,10 @@ def tsfresh_extraction(data):
     ts_df.columns = ['id', 'time', 'mag']
 
     features = extract_features(ts_df, column_id="id", column_sort="time", column_kind=None, column_value=None)
+    features = features.drop(['mag__sample_entropy'], axis=1)
     features.replace([np.inf, -np.inf], np.nan, inplace=True)
     features = features.dropna(axis=1)
-
+    
     print(features.shape)
 
     return features
